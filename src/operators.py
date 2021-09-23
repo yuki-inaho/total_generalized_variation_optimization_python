@@ -1,110 +1,91 @@
 import sys
 import numpy as np
+from typing import List
 
 
-# TODO: rewrite
-def gradient(image):
-    """
-    Compute the gradient of an image as a numpy array
-    Courtesy : E. Gouillart - https://github.com/emmanuelle/tomo-tv/
-    """
-    shape = [
-        image.ndim,
-    ] + list(image.shape)
-    gradient = np.zeros(shape, dtype=image.dtype)  # [dim, height, width]
-    slice_all = [
-        0,
-        slice(None, -1),
-    ]
-
-    for d in range(image.ndim):
-        gradient[tuple(slice_all)] = np.diff(
-            image,
-            axis=d
-        )
-        slice_all[0] = d + 1
-        slice_all.insert(1, slice(None))
-    return gradient
+def stack_2d_array(arrays: List[np.ndarray]) -> np.ndarray:
+    if len(arrays) == 0:
+        return np.asarray([])
+    if arrays[0].ndim != 2:
+        sys.exit(f"<stack_2d_array>: arrays[0].ndim != 2 ({arrays[0].ndim})")
+    arrays_stacked = np.dstack(arrays)  # H:W:C
+    return arrays_stacked.transpose((2, 0, 1))  # C:H:W
 
 
-def divergence(grad):
-    div = np.zeros(grad.shape[1:])  # div's shape is [height, width]
-    for d in range(grad.shape[0]):  # grad's shape is [dim, height, width]
-        this_grad = np.rollaxis(grad[d], d)
-        this_res = np.rollaxis(div, d)
-        this_res[:-1] += this_grad[:-1]
-        this_res[1:-1] -= this_grad[:-2]
-        this_res[-1] -= this_grad[-2]
+def derivative(image):
+    derivative_y = np.zeros_like(image)
+    derivative_x = np.zeros_like(image)
+    derivative_y[:-1, :] = image[1:, :] - image[:-1, :]
+    derivative_x[:, :-1] = image[:, 1:] - image[:, :-1]
+    return derivative_y, derivative_x
+
+
+def divergence(grad_list: np.ndarray):
+    grad_y = grad_list[0]
+    grad_x = grad_list[1]
+
+    shape = list(grad_list.shape[1:])
+    div = np.zeros(shape, dtype=grad_list.dtype)
+
+    div[:, 0] += grad_x[:, 0]
+    div[:, 1:-1] += grad_x[:, 1:-1] - grad_x[:, 0:-2]
+    div[:, -1] -= grad_x[:, -1]
+
+    div[0, :] += grad_y[0, :]
+    div[1:-1, :] += grad_y[1:-1, :] - grad_y[0:-2, :]
+    div[-1, :] -= grad_y[-1, :]
     return div
 
 
-def symmetrized_second_derivative(gradient):
-    if gradient.ndim < 3:
-        sys.exit("second_derivative: gradient.ndim < 3")
-    n_independent_variable = gradient.shape[0]
+def symmetrized_second_derivative(grad):
+    if grad.ndim < 3:
+        sys.exit("<second_derivative>: grad.ndim < 3")
+    if grad.shape[0] != 2:
+        sys.exit("<second_derivative>: grad.shape[0] != 2")
 
-    
-    shape = [n_independent_variable**2,] + list(gradient.shape[1:])
-    second_derivative = np.zeros(shape, dtype=gradient.dtype)  # [dim, height, width]
+    grad_y = grad[0]
+    grad_x = grad[1]
 
-    second_derivative[0, :-1, :] = np.diff(gradient[0], axis=0)
-    second_derivative[1, :-1, :] = np.diff(gradient[0], axis=0) 
-    second_derivative[1, :, :-1] += np.diff(gradient[1], axis=1)/2
-    
-    second_derivative[2, :-1, :] = np.diff(gradient[1], axis=0)/2
-    second_derivative[2, :, :-1] += np.diff(gradient[0], axis=1)
-    
-    second_derivative[3, :, :-1] = np.diff(gradient[1], 1)
+    grad_yy, grad_yx = derivative(grad_y)
+    grad_xy, grad_xx = derivative(grad_x)
+    #grad_xy_sym = (grad_xy + grad_yx) / 2
 
-    """
-    for i in range(n_independent_variable):
-        slice_all = [
-            i * n_independent_variable,
-            slice(None, -1),
-        ]
-        for d in range(n_independent_variable):            
-            second_derivative[tuple(slice_all)] = (np.diff(gradient[i], axis=d) + np.diff(gradient[i], axis=n_independent_variable - d -1).T) / 2
-            slice_all[0] = i * n_independent_variable + d + 1
-            slice_all.insert(1, slice(None))
-    """
-    
-    return second_derivative
+    return grad_yy, grad_yx, grad_xy, grad_xx
 
 
-def second_order_divergence(second_order_gradient):
-    if second_order_gradient.ndim < 3:
-        sys.exit("second_order_divergence: second_order_gradient.ndim < 3")
-    if second_order_gradient.shape[0] < 4:
-        sys.exit("second_order_divergence: second_order_gradient.shape[0] < 4")
+def second_order_divergence(second_order_derivative, draw=False):
+    if second_order_derivative.ndim != 3:
+        sys.exit("<second_order_divergence>: second_order_derivative.ndim < 3")
+    if second_order_derivative.shape[0] != 4:
+        sys.exit("<second_order_divergence>: second_order_derivative.shape[0] != 4")
 
-    n_independent_variable = int(np.sqrt(second_order_gradient.shape[0]))
-    shape = [n_independent_variable,] + list(second_order_gradient.shape[1:])
-    res = np.zeros(shape, dtype=second_order_gradient.dtype)
+    derivative_yy = second_order_derivative[0]
+    derivative_yx = second_order_derivative[1]
+    derivative_xy = second_order_derivative[2]
+    derivative_xx = second_order_derivative[3]
 
-    res[0] = second_order_gradient[0] + second_order_gradient[1].T
-    res[1] = second_order_gradient[1] + second_order_gradient[2].T
+    div_sec_x = np.zeros_like(derivative_xx)
+    div_sec_x[:, 0] += derivative_xx[:, 0]
+    div_sec_x[:, 1:-1] += derivative_xx[:, 1:-1] - derivative_xx[:, 0:-2]
+    div_sec_x[:, -1] -= derivative_xx[:, -1]
+    div_sec_x[0, :] += derivative_xy[0, :]
+    div_sec_x[1:-1, :] += derivative_xy[1:-1, :] - derivative_xy[0:-2, :]
+    div_sec_x[-1, :] -= derivative_xy[-1, :]
 
-    """
-    for i in range(n_independent_variable):
-        for j in range(n_independent_variable):
-            d = n_independent_variable * i + j
-            this_grad = np.rollaxis(second_order_gradient[d], j)
-            this_res = np.rollaxis(res[i], j) 
-            this_res[:-1] += this_grad[:-1]
-            this_res[1:-1] -= this_grad[:-2]
-            this_res[-1] -= this_grad[-2]
-    """
-    
-    return res
+    div_sec_y = np.zeros_like(derivative_yx)
+    div_sec_y[:, 0] += derivative_yx[:, 0]
+    div_sec_y[:, 1:-1] += derivative_yx[:, 1:-1] - derivative_yx[:, 0:-2]
+    div_sec_y[:, -1] -= derivative_yx[:, -1]
+    div_sec_y[0, :] += derivative_yy[0, :]
+    div_sec_y[1:-1, :] += derivative_yy[1:-1, :] - derivative_yy[0:-2, :]
+    div_sec_y[-1, :] -= derivative_yy[-1, :]
+
+    return div_sec_y, div_sec_x
 
 
-def proj_l2(g, lambda_tv=1.0):
-    # res = np.copy(g/lambda_tv)
-    # denom = np.maximum(1.0, np.sum(np.abs(g), axis=0) / lambda_tv)
-
+def proj_l2(g, alpha=1.0):
     res = np.copy(g)
-    denom = np.maximum(np.sqrt(np.sum(g ** 2, 0)) / lambda_tv, 1.0)
-    # denom = np.maximum(1.0, np.sum(np.abs(g), axis=0))
+    denom = np.maximum(1.0, np.abs(g).sum(0) / alpha)
     res[0] /= denom
     res[1] /= denom
     return res
@@ -125,7 +106,7 @@ def norm2sq(mat):
 def power_method(data, n_it=100):
     x = data
     for k in range(0, n_it):
-        x = -divergence(gradient(x))
+        x = -divergence(derivative(x))
         s = np.sqrt(norm2sq(x))
         x /= s
     return np.sqrt(s)

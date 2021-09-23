@@ -8,6 +8,17 @@ def show_image(image, title="image"):
     cv2.destroyAllWindows()
 
 
+def normalize(image):
+    return ((image + 0.5) * 255).astype(np.uint8)
+
+
+def save_image(image, title="image.jpg", enable_normalize=True):
+    if enable_normalize:
+        image = normalize(image)
+    cv2.imwrite(title, image)
+    cv2.waitKey(10)
+
+
 def add_noise(image, s_vs_p=0.5, amount=0.004):
     row, col = image.shape
     s_vs_p = 0.5
