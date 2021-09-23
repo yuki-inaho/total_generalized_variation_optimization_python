@@ -86,13 +86,9 @@ def tgv_denoise_pd(image, lambda_tv=10.0, alpha = 0.05, L = 24, n_it=500, with_l
         q = proj_l2(q + sigma_n * v_bar_second_derivative, 1.0)
 
         u_old = u.copy()
-        tau_n_m1 = tau_n.copy()
-        theta_n_m1 = theta_n.copy()
-        #tau_list = np.arange(tau_n_m1, tau_n_m1 * np.sqrt(1 + theta_n_m1), 5)
-
         p_div = divergence(p)
         u = proj_double_norm(u + tau_n * p_div, image, lambda_tv, tau_n)
-        u = (u + tau_n * ( p_div + lambda_tv * image)) / (1 + tau_n * lambda_tv)
+        #u = (u + tau_n * ( p_div + lambda_tv * image)) / (1 + tau_n * lambda_tv)
         u_bar = u + theta_n * (u - u_old)
 
         v_old = v.copy()

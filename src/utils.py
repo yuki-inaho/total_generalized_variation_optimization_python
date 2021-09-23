@@ -36,10 +36,10 @@ def add_noise(image, s_vs_p=0.5, amount=0.004):
     return out
 
 
-def add_noise_g(image, var=0.1):
+def add_noise_g(image, std=0.01):
     row, col = image.shape
     mean = 0
-    sigma = var ** 0.5
+    sigma = std **2 * 2
     gauss = np.random.normal(mean, sigma, (row, col))
     gauss = gauss.reshape(row, col)
     noisy = image + gauss
