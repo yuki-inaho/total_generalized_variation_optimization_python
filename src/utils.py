@@ -19,17 +19,15 @@ def save_image(image, title="image.jpg", enable_normalize=True):
     cv2.waitKey(10)
 
 
-def add_noise(image, s_vs_p=0.5, amount=0.004):
+def add_noise_sp(image, s_vs_p=0.5, amount=0.004):
     row, col = image.shape
-    s_vs_p = 0.5
-    amount = 0.004
     out = np.copy(image)
-    # Salt mode
+    # Salt
     num_salt = np.ceil(amount * image.size * s_vs_p)
     coords = [np.random.randint(0, i - 1, int(num_salt)) for i in image.shape]
     out[coords] = 1
 
-    # Pepper mode
+    # Pepper
     num_pepper = np.ceil(amount * image.size * (1.0 - s_vs_p))
     coords = [np.random.randint(0, i - 1, int(num_pepper)) for i in image.shape]
     out[coords] = 0
@@ -39,8 +37,7 @@ def add_noise(image, s_vs_p=0.5, amount=0.004):
 def add_noise_g(image, std=0.01):
     row, col = image.shape
     mean = 0
-    sigma = std **2 * 2
-    gauss = np.random.normal(mean, sigma, (row, col))
-    gauss = gauss.reshape(row, col)
-    noisy = image + gauss
+    sigma = std ** 2 * 2
+    gauss = np.random.normal(mean, sigma, (row, col)).reshape(row, col)
+    noisy = np.clip(image * (1 + gauss), -0.5, 0.5)
     return noisy
